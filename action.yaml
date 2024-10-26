@@ -1,0 +1,27 @@
+name: action-body-fields
+description: Add fields to github PR body
+author: insidewhy
+runs:
+  using: node20
+  main: lib/index.js
+branding:
+  icon: check-square
+  color: blue
+inputs:
+  fields:
+    description: 'Fields to prepend, one per line in format "key: value"'
+    required: true
+  github-token:
+    description: Github token used for amending body
+    default: ${{ github.token }}
+  issue-number:
+    description: Issue id to attach comment to
+    default: ${{ github.event.number }}
+  repository:
+    description: The github repository in the form ${organisation}/${repository}
+    default: ${{ github.repository }}
+  prepend:
+    description: Prepend new fields
+    required: false
+  append-to-values:
+    description: Append the values to each value when not already present instead of replacing them

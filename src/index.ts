@@ -40,12 +40,8 @@ export async function run(): Promise<void> {
       console.log('no block to append values')
     } else {
       console.log('creating block')
-      await client.issues.update({
-        owner,
-        repo,
-        issue_number,
-        body: `${BODY_HEADER}${fieldsRaw}${BODY_FOOTER}${issueBody ?? ''}`,
-      })
+      const body = `${BODY_HEADER}${fieldsRaw}${BODY_FOOTER}${issueBody ? '\n\n' + issueBody : ''}`
+      await client.issues.update({ owner, repo, issue_number, body })
     }
 
     return

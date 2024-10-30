@@ -1,6 +1,6 @@
 {
   "name": "action-body-fields",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Add fields to github body",
   "main": "lib/index.js",
   "type": "module",
@@ -12,7 +12,8 @@
     "format-check": "prettier --check .",
     "format": "pnpm format-check --write",
     "type-check": "pnpm tsc --noEmit",
-    "test": "pnpm vitest"
+    "test": "pnpm vitest",
+    "validate": "pnpm lint-check && pnpm format-check && pnpm type-check && pnpm test run"
   },
   "repository": {
     "type": "git",

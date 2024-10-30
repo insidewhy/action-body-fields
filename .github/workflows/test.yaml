@@ -27,7 +27,4 @@ jobs:
 
       - name: test
         run: |
-          pnpm run format-check
-          pnpm run type-check
-          pnpm run lint-check
-          GITHUB_ACTIONS= pnpm test run
+          GITHUB_ACTIONS= pnpm validate

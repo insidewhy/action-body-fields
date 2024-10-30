@@ -25,8 +25,11 @@ const fieldsToBlock = (fields: Record<string, string>) =>
 function mockDependencies(
   fields: Record<string, string>,
   bodyFields: Record<string, string> | undefined = undefined,
-  prepend = false,
-  appendToValues = false,
+  {
+    prepend = false,
+    appendToValues = false,
+    bodyContent = undefined,
+  }: { prepend?: boolean; appendToValues?: boolean; bodyContent?: string } = {},
 ): Mock {
   getInputMock.mockReturnValueOnce(fieldsToString(fields))
   getInputMock.mockReturnValueOnce('token')
@@ -37,12 +40,12 @@ function mockDependencies(
 
   const update = vi.fn()
 
+  const body = `${bodyFields ? fieldsToBlock(bodyFields) : ''}${bodyContent ?? ''}`
+
   octokitMock.mockImplementation(() => {
     return {
       issues: {
-        get: vi
-          .fn()
-          .mockReturnValue({ data: { body: bodyFields ? fieldsToBlock(bodyFields) : '' } }),
+        get: vi.fn().mockReturnValue({ data: { body } }),
         update,
       },
     } as unknown as Octokit
@@ -51,19 +54,25 @@ function mockDependencies(
   return update
 }
 
-function expectFields(update: Mock, fields: Record<string, string>): void {
+function expectFields(
+  update: Mock,
+  fields: Record<string, string>,
+  contentAfterFields?: string,
+): void {
   expect(update).toHaveBeenCalledWith({
     owner: 'owner',
     repo: 'repo',
     issue_number: 123,
-    body: fieldsToBlock(fields),
+    body: `${fieldsToBlock(fields)}${contentAfterFields ?? ''}`,
   })
 }
 
 it('can prepend fields to body without any fields', async () => {
-  const update = mockDependencies({ mr: '1', cat: '2' })
+  const update = mockDependencies({ mr: '1', cat: '2' }, undefined, {
+    bodyContent: 'cool',
+  })
   await run()
-  expectFields(update, { mr: '1', cat: '2' })
+  expectFields(update, { mr: '1', cat: '2' }, '\n\ncool')
 })
 
 it('can update, add and preserve fields', async () => {
@@ -73,7 +82,7 @@ it('can update, add and preserve fields', async () => {
 })
 
 it('can update, prepend and preserve fields', async () => {
-  const update = mockDependencies({ mr: '3', jives: '6' }, { mr: '1', cat: '2' }, true)
+  const update = mockDependencies({ mr: '3', jives: '6' }, { mr: '1', cat: '2' }, { prepend: true })
   await run()
   expectFields(update, { jives: '6', mr: '3', cat: '2' })
 })
@@ -82,8 +91,7 @@ it('can append suffixes to fields', async () => {
   const update = mockDependencies(
     { mr: '(hey)', jives: '(man)' },
     { mr: '1', cat: '2' },
-    false,
-    true,
+    { appendToValues: true },
   )
   await run()
   expectFields(update, { mr: '1 (hey)', cat: '2' })
@@ -96,11 +104,15 @@ it('does not call update function when there are no changes to make', async () =
 })
 
 it('does not call update function when there are no appends to make', async () => {
-  const update1 = mockDependencies({ mr: 'sfx' }, { mr: '1 sfx', cat: '2' }, false, true)
+  const update1 = mockDependencies(
+    { mr: 'sfx' },
+    { mr: '1 sfx', cat: '2' },
+    { appendToValues: true },
+  )
   await run()
   expect(update1).not.toHaveBeenCalled()
 
-  const update2 = mockDependencies({ mr: 'sfx' }, { cat: '2' }, false, true)
+  const update2 = mockDependencies({ mr: 'sfx' }, { cat: '2' }, { appendToValues: true })
   await run()
   expect(update2).not.toHaveBeenCalled()
 })

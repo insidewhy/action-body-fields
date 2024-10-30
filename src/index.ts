@@ -51,35 +51,34 @@ export async function run(): Promise<void> {
     return
   }
 
-  const unreferencedFields = parseFields(existingBlock.split(/\r?\n/).slice(1, -1))
-  const fields = parseFields(fieldsRaw.split(/\r?\n/))
+  const fields = parseFields(existingBlock.split(/\r?\n/).slice(1, -1))
+  const fieldsToAdd = new Map<string, string>()
+  const newFields = parseFields(fieldsRaw.split(/\r?\n/))
 
   let hasChange = false
-  const referencedFields: string[] = []
 
-  for (const [key, value] of fields) {
-    const existingValue = unreferencedFields.get(key)
+  for (const [key, value] of newFields) {
+    const existingValue = fields.get(key)
 
     if (appendToValues) {
       if (existingValue) {
         const toAppend = ` ${value}`
-        if (existingValue.endsWith(toAppend)) {
-          referencedFields.push(`${key}: ${existingValue}`)
-        } else {
-          referencedFields.push(`${key}: ${existingValue}${toAppend}`)
+        if (!existingValue.endsWith(toAppend)) {
+          fields.set(key, `${existingValue}${toAppend}`)
           hasChange = true
         }
       }
-    } else {
-      referencedFields.push(`${key}: ${value}`)
-      if (existingValue !== value) {
-        hasChange = true
-      }
+      continue
     }
 
-    // leave in map for prepending/appending later
     if (existingValue) {
-      unreferencedFields.delete(key)
+      if (existingValue !== value) {
+        fields.set(key, value)
+        hasChange = true
+      }
+    } else {
+      fieldsToAdd.set(key, value)
+      hasChange = true
     }
   }
 
@@ -89,18 +88,20 @@ export async function run(): Promise<void> {
   }
 
   console.log('updating block')
-  const referencedFieldsContent = referencedFields.join('\n')
-  let newBlockContent = ''
-  if (!unreferencedFields.size) {
-    newBlockContent = referencedFieldsContent
-  } else {
-    const unreferencedFieldsContent = Array.from(unreferencedFields)
+
+  const fieldsToBlock = (fields: Map<string, string>) =>
+    Array.from(fields)
       .map(([k, v]) => `${k}: ${v}`)
       .join('\n')
+
+  let newBlockContent = fieldsToBlock(fields)
+
+  if (fieldsToAdd.size) {
+    const newFieldsContent = fieldsToBlock(fieldsToAdd)
     if (prepend) {
-      newBlockContent = `${referencedFieldsContent}\n${unreferencedFieldsContent}`
+      newBlockContent = `${newFieldsContent}\n${newBlockContent}`
     } else {
-      newBlockContent = `${unreferencedFieldsContent}\n${referencedFieldsContent}`
+      newBlockContent += `\n${newFieldsContent}`
     }
   }
 

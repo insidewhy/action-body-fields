@@ -51,28 +51,27 @@ async function run(): Promise<void> {
     return
   }
 
-  const existingBlockLines = existingBlock.split(/\r?\n/).slice(1, -1)
-  const untouchedFields = parseFields(existingBlockLines)
+  const unreferencedFields = parseFields(existingBlock.split(/\r?\n/).slice(1, -1))
   const fields = parseFields(fieldsRaw.split(/\r?\n/))
 
   let hasChange = false
-  const newBlockFields: string[] = []
+  const referencedFields: string[] = []
 
   for (const [key, value] of fields) {
-    const existingValue = untouchedFields.get(key)
+    const existingValue = unreferencedFields.get(key)
 
     if (appendToValues) {
       if (existingValue) {
         const toAppend = ` ${value}`
         if (existingValue.endsWith(toAppend)) {
-          newBlockFields.push(`${key}: ${existingValue}`)
+          referencedFields.push(`${key}: ${existingValue}`)
         } else {
-          newBlockFields.push(`${key}: ${existingValue}${toAppend}`)
+          referencedFields.push(`${key}: ${existingValue}${toAppend}`)
           hasChange = true
         }
       }
     } else {
-      newBlockFields.push(`${key}: ${value}`)
+      referencedFields.push(`${key}: ${value}`)
       if (existingValue !== value) {
         hasChange = true
       }
@@ -80,7 +79,7 @@ async function run(): Promise<void> {
 
     // leave in map for prepending/appending later
     if (existingValue) {
-      untouchedFields.delete(key)
+      unreferencedFields.delete(key)
     }
   }
 
@@ -90,18 +89,18 @@ async function run(): Promise<void> {
   }
 
   console.log('updating block')
-  const newFieldsRaw = newBlockFields.join('\n')
+  const referencedFieldsContent = referencedFields.join('\n')
   let newBlockContent = ''
-  if (!untouchedFields.size) {
-    newBlockContent = newFieldsRaw
+  if (!unreferencedFields.size) {
+    newBlockContent = referencedFieldsContent
   } else {
-    const preservedBlockContent = Array.from(untouchedFields)
+    const unreferencedFieldsContent = Array.from(unreferencedFields)
       .map(([k, v]) => `${k}: ${v}`)
       .join('\n')
     if (prepend) {
-      newBlockContent = `${newFieldsRaw}\n${preservedBlockContent}`
+      newBlockContent = `${referencedFieldsContent}\n${unreferencedFieldsContent}`
     } else {
-      newBlockContent = `${preservedBlockContent}\n${newFieldsRaw}`
+      newBlockContent = `${unreferencedFieldsContent}\n${referencedFieldsContent}`
     }
   }
 

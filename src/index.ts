@@ -13,8 +13,8 @@ function parseFields(fieldsRaw: string[]): Map<string, string> {
   )
 }
 
-async function run(): Promise<void> {
-  const fieldsRaw = getInput('fields', { required: true }).trim()
+export async function run(): Promise<void> {
+  const fieldsRaw = getInput('fields', { required: true })
   const githubToken = getInput('github-token', { required: true })
   const issue_number = parseInt(getInput('issue-number', { required: true }))
   const [owner, repo] = getInput('repository', { required: true }).split('/')
@@ -112,7 +112,9 @@ async function run(): Promise<void> {
   })
 }
 
-run().catch((error) => {
-  console.error(error)
-  process.exit(1)
-})
+if (process.env.GITHUB_ACTIONS) {
+  run().catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })
+}

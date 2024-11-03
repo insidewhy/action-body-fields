@@ -1,14 +1,16 @@
+import { munamuna, returns, spy } from 'munamuna'
 import { beforeEach, expect, it, vi, Mock } from 'vitest'
 import { getInput } from '@actions/core'
-import { Octokit } from '@octokit/rest'
+import * as octokitRest from '@octokit/rest'
 
 import { run } from './index'
 
 vi.mock('@actions/core', () => ({ getInput: vi.fn() }))
-vi.mock('@octokit/rest', () => ({ Octokit: vi.fn() }))
+
+vi.mock('@octokit/rest', () => ({}))
 
 const getInputMock = vi.mocked(getInput)
-const octokitMock = vi.mocked(Octokit)
+const issuesMock = munamuna(octokitRest).Octokit[returns].issues
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -38,20 +40,10 @@ function mockDependencies(
   getInputMock.mockReturnValueOnce(prepend.toString())
   getInputMock.mockReturnValueOnce(appendToValues.toString())
 
-  const update = vi.fn()
-
   const body = `${bodyFields ? fieldsToBlock(bodyFields) : ''}${bodyContent ?? ''}`
 
-  octokitMock.mockImplementation(() => {
-    return {
-      issues: {
-        get: vi.fn().mockReturnValue({ data: { body } }),
-        update,
-      },
-    } as unknown as Octokit
-  })
-
-  return update
+  issuesMock.get[returns].data.body = body
+  return issuesMock.update[spy]
 }
 
 function expectFields(

@@ -1,6 +1,6 @@
 # Body fields
 
-An action to display key value pairs in a pull requets body.
+An action to display key value pairs in a pull request body.
 Values are added in such a way that they can be updated as they change.
 
 ## Installation
@@ -25,7 +25,8 @@ jobs:
             Website: http://my-shoes-are-on-fire.com
 
       # append the content " (outdated)" to fields that have already been added and where they
-      # are not already appended, after this `Website: http://blarg.com (outdated)` will display
+      # are not already appended, after this the body will read:
+      # `Website: http://my-shoes-are-on-fire.com (outdated)`
       - uses: insidewhy/action-body-fields@v1
         with:
           append-to-values: true
@@ -36,14 +37,14 @@ jobs:
       - name: do some work
         run: make build-stuff
 
-      # then update fields to these values
+      # update fields to these values
       - uses: insidewhy/action-body-fields@v1
         with:
           fields: |
             Website: http://adorable-cat-test-website.com
             Stories: http://stories.adorable-cat-test-website.com
 
-      # then add some fields at the start of the block, preserving the previous fields
+      # add some fields at the start of the block, preserving the previous fields
       - uses: insidewhy/action-body-fields@v1
         with:
           fields: |
@@ -51,7 +52,7 @@ jobs:
             Near the top: i have issues with wind chimes
           prepend: true
 
-      # then add some more fields to the bottom of the block
+      # add some more fields to the bottom of the block
       - uses: insidewhy/action-body-fields@v1
         with:
           fields: |

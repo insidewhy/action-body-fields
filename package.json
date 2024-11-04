@@ -3,10 +3,9 @@
   "version": "1.0.1",
   "description": "Add fields to github body",
   "main": "lib/index.js",
-  "type": "module",
   "packageManager": "pnpm@9.11.0",
   "scripts": {
-    "build": "esbuild --bundle --platform=node --format=esm src/index.ts --outfile=lib/index.js",
+    "build": "esbuild --bundle --platform=node src/index.ts --outfile=lib/index.js",
     "lint-check": "eslint src/*.ts",
     "lint": "pnpm lint-check --fix",
     "format-check": "prettier --check .",

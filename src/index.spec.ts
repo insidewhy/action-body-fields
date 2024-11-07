@@ -1,5 +1,5 @@
 import { munamuna, returns, spy } from 'munamuna'
-import { beforeEach, expect, it, vi, Mock } from 'vitest'
+import { beforeEach, describe, expect, it, vi, Mock } from 'vitest'
 import * as actionsCore from '@actions/core'
 import * as octokitRest from '@octokit/rest'
 
@@ -20,8 +20,8 @@ const fieldsToString = (fields: Record<string, string>) =>
     .map(([k, v]) => `${k}: ${v}`)
     .join('\n')
 
-const fieldsToBlock = (fields: Record<string, string>) =>
-  `<!-- body fields -->\r\n${fieldsToString(fields)}\r\n<!-- end body fields -->`
+const fieldsToBlock = (fields?: Record<string, string>) =>
+  fields ? `<!-- body fields -->\r\n${fieldsToString(fields)}\r\n<!-- end body fields -->` : ''
 
 function mockDependencies(
   fields: Record<string, string>,
@@ -30,7 +30,17 @@ function mockDependencies(
     prepend = false,
     appendToValues = false,
     bodyContent = undefined,
-  }: { prepend?: boolean; appendToValues?: boolean; bodyContent?: string } = {},
+    oldTitle,
+    title,
+    titleFrom,
+  }: {
+    prepend?: boolean
+    appendToValues?: boolean
+    bodyContent?: string
+    oldTitle?: string
+    title?: string
+    titleFrom?: string
+  } = {},
 ): Mock {
   getInputMock.mockReturnValueOnce(fieldsToString(fields))
   getInputMock.mockReturnValueOnce('token')
@@ -38,24 +48,41 @@ function mockDependencies(
   getInputMock.mockReturnValueOnce('owner/repo')
   getInputMock.mockReturnValueOnce(prepend.toString())
   getInputMock.mockReturnValueOnce(appendToValues.toString())
+  getInputMock.mockReturnValueOnce(title)
+  getInputMock.mockReturnValueOnce(titleFrom)
 
   const body = `${bodyFields ? fieldsToBlock(bodyFields) : ''}${bodyContent ?? ''}`
 
   issuesMock.get[returns].data.body = body
+  if (oldTitle) {
+    issuesMock.get[returns].data.title = oldTitle
+  }
   return issuesMock.update[spy]
 }
 
 function expectFields(
   update: Mock,
-  fields: Record<string, string>,
-  contentAfterFields?: string,
+  fields?: Record<string, string>,
+  { contentAfterFields = '', title }: { contentAfterFields?: string; title?: string } = {},
 ): void {
-  expect(update).toHaveBeenCalledWith({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const expectedUpdate: any = {
     owner: 'owner',
     repo: 'repo',
     issue_number: 123,
-    body: `${fieldsToBlock(fields)}${contentAfterFields ?? ''}`,
-  })
+  }
+  if (title) {
+    expectedUpdate.title = title
+  }
+
+  const body = fields && fieldsToBlock(fields)
+  if (body) {
+    expectedUpdate.body = body + contentAfterFields
+  } else if (contentAfterFields) {
+    expectedUpdate.body = contentAfterFields
+  }
+
+  expect(update).toHaveBeenCalledWith(expectedUpdate)
 }
 
 it('can prepend fields to body without any fields', async () => {
@@ -63,7 +90,7 @@ it('can prepend fields to body without any fields', async () => {
     bodyContent: 'cool',
   })
   await run()
-  expectFields(update, { mr: '1', cat: '2' }, '\n\ncool')
+  expectFields(update, { mr: '1', cat: '2' }, { contentAfterFields: '\n\ncool' })
 })
 
 it('can update, add and preserve fields', async () => {
@@ -106,4 +133,88 @@ it('does not call update function when there are no appends to make', async () =
   const update2 = mockDependencies({ mr: 'sfx' }, { cat: '2' }, { appendToValues: true })
   await run()
   expect(update2).not.toHaveBeenCalled()
+})
+
+describe('when titleFrom is used', () => {
+  it('can update the title only if the title has changed but not the fields', async () => {
+    const update = mockDependencies(
+      { mr: 'new' },
+      { mr: 'new', cat: '2' },
+      { oldTitle: 'old', titleFrom: 'mr' },
+    )
+    await run()
+    expectFields(update, undefined, { title: 'new' })
+  })
+
+  it('does nothing if neither the title nor the body have changed', async () => {
+    const update = mockDependencies(
+      { mr: 'new' },
+      { mr: 'new', cat: '2' },
+      { oldTitle: 'new', titleFrom: 'mr' },
+    )
+    await run()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('can update title and prepend fields to body without any fields', async () => {
+    const update = mockDependencies({ mr: '1', cat: '2' }, undefined, {
+      bodyContent: 'cool',
+      oldTitle: 'old',
+      titleFrom: 'mr',
+    })
+    await run()
+    expectFields(update, { mr: '1', cat: '2' }, { contentAfterFields: '\n\ncool', title: '1' })
+  })
+
+  it('can update title from new field and body when both have changed', async () => {
+    const update = mockDependencies(
+      { mr: '3' },
+      { mr: '1', cat: '2' },
+      { oldTitle: 'old', titleFrom: 'mr' },
+    )
+    await run()
+    expectFields(update, { mr: '3', cat: '2' }, { title: '3' })
+  })
+
+  it('can update title from old field and body when both have changed', async () => {
+    const update = mockDependencies(
+      { mr: '3' },
+      { mr: '1', cat: '2' },
+      { oldTitle: 'old', titleFrom: 'cat' },
+    )
+    await run()
+    expectFields(update, { mr: '3', cat: '2' }, { title: '2' })
+  })
+})
+
+describe('when title is used', () => {
+  it('can update the title only if the title has changed but not the fields', async () => {
+    const update = mockDependencies(
+      { mr: 'new' },
+      { mr: 'new', cat: '2' },
+      { oldTitle: 'old', title: 'ey' },
+    )
+    await run()
+    expectFields(update, undefined, { title: 'ey' })
+  })
+
+  it('does nothing if neither the title nor the body have changed', async () => {
+    const update = mockDependencies(
+      { mr: 'new' },
+      { mr: 'new', cat: '2' },
+      { oldTitle: 'new', title: 'new' },
+    )
+    await run()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('can update title and body when both have changed', async () => {
+    const update = mockDependencies(
+      { mr: '3' },
+      { mr: '1', cat: '2' },
+      { oldTitle: 'old', title: 'new' },
+    )
+    await run()
+    expectFields(update, { mr: '3', cat: '2' }, { title: 'new' })
+  })
 })

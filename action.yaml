@@ -25,3 +25,7 @@ inputs:
     required: false
   append-to-values:
     description: Append the values to each value when not already present instead of replacing them
+  title:
+    description: Update title to specified string
+  title-from:
+    description: Update issue title from named field

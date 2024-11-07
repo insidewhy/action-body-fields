@@ -1,8 +1,10 @@
 import { getInput } from '@actions/core'
-import { Octokit } from '@octokit/rest'
+import { Octokit, RestEndpointMethodTypes } from '@octokit/rest'
 
 const BODY_HEADER = '<!-- body fields -->\r\n'
 const BODY_FOOTER = '\r\n<!-- end body fields -->'
+
+type UpdateParameters = RestEndpointMethodTypes['issues']['update']['parameters']
 
 function parseFields(fieldsRaw: string[]): Map<string, string> {
   return new Map(
@@ -20,13 +22,22 @@ export async function run(): Promise<void> {
   const [owner, repo] = getInput('repository', { required: true }).split('/')
   const prepend = getInput('prepend') === 'true'
   const appendToValues = getInput('append-to-values') === 'true'
+  const title = getInput('title')
+  const titleFrom = getInput('title-from')
 
   const client = new Octokit({ auth: githubToken })
   const issue = await client.issues.get({ owner, repo, issue_number })
 
-  const issueBody = issue.data.body
-  let foundBlock = false
+  if (titleFrom && appendToValues) {
+    throw new Error('Cannot use title-from with append-to-values')
+  }
+  if (title && titleFrom) {
+    throw new Error('Cannot use title with title-from')
+  }
 
+  const { title: oldTitle, body: issueBody } = issue.data
+
+  let foundBlock = false
   const existingBlock = issueBody?.replace(
     new RegExp(`.*(${BODY_HEADER}.*${BODY_FOOTER}).*`, 's'),
     (_matched, block) => {
@@ -40,8 +51,15 @@ export async function run(): Promise<void> {
       console.log('no block to append values')
     } else {
       console.log('creating block')
+      const newFields = parseFields(fieldsRaw.split(/\r?\n/))
+      const newTitle = titleFrom ? newFields.get(titleFrom) : title
       const body = `${BODY_HEADER}${fieldsRaw}${BODY_FOOTER}${issueBody ? '\n\n' + issueBody : ''}`
-      await client.issues.update({ owner, repo, issue_number, body })
+      const update: UpdateParameters = { owner, repo, issue_number, body }
+      if (newTitle) {
+        update.title = newTitle
+      }
+
+      await client.issues.update(update)
     }
 
     return
@@ -78,12 +96,17 @@ export async function run(): Promise<void> {
     }
   }
 
+  const newTitle = titleFrom ? (newFields.get(titleFrom) ?? fields.get(titleFrom)) : title
+
   if (!hasChange) {
     console.log('no changes to block')
+
+    if (newTitle && newTitle !== oldTitle) {
+      console.log('updating title')
+      await client.issues.update({ owner, repo, issue_number, title: newTitle })
+    }
     return
   }
-
-  console.log('updating block')
 
   const fieldsToBlock = (fields: Map<string, string>) =>
     Array.from(fields)
@@ -101,12 +124,20 @@ export async function run(): Promise<void> {
     }
   }
 
-  await client.issues.update({
+  const update: UpdateParameters = {
     owner,
     repo,
     issue_number,
     body: issueBody!.replace(existingBlock, `${BODY_HEADER}${newBlockContent}${BODY_FOOTER}`),
-  })
+  }
+  if (newTitle && newTitle !== oldTitle) {
+    console.log('updating block and title')
+    update.title = newTitle
+  } else {
+    console.log('updating block')
+  }
+
+  await client.issues.update(update)
 }
 
 if (process.env.GITHUB_ACTIONS) {

@@ -34,3 +34,11 @@ inputs:
     description: Add a header to the block
   footer:
     description: Add a footer to the block
+  block-name:
+    description: Name of block to generate, defaults to "default"
+  block-position:
+    description: Position of block relative to other blocks, can be "first" to appear at the beginning of the PR body or "after" to appear after the final block in the PR summary
+  content:
+    description: Create a block with this raw content rather than fields
+  remove:
+    description: Remove the block

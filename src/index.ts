@@ -16,7 +16,7 @@ function parseFields(fieldsRaw: string[]): Map<string, string> {
 }
 
 export async function run(): Promise<void> {
-  const fieldsRaw = getInput('fields', { required: true })
+  const fieldsRaw = getInput('fields') ?? ''
   const githubToken = getInput('github-token', { required: true })
   const issue_number = parseInt(getInput('issue-number', { required: true }))
   const [owner, repo] = getInput('repository', { required: true }).split('/')
@@ -24,6 +24,7 @@ export async function run(): Promise<void> {
   const appendToValues = getInput('append-to-values') === 'true'
   const title = getInput('title')
   const titleFrom = getInput('title-from')
+  const removeFields = (getInput('remove-fields') ?? '').split(',')
 
   const client = new Octokit({ auth: githubToken })
   const issue = await client.issues.get({ owner, repo, issue_number })
@@ -49,7 +50,7 @@ export async function run(): Promise<void> {
   if (!existingBlock || !foundBlock) {
     if (appendToValues) {
       console.log('no block to append values')
-    } else {
+    } else if (fieldsRaw) {
       console.log('creating block')
       const newFields = parseFields(fieldsRaw.split(/\r?\n/))
       const newTitle = titleFrom ? newFields.get(titleFrom) : title
@@ -67,7 +68,7 @@ export async function run(): Promise<void> {
 
   const fields = parseFields(existingBlock.split(/\r?\n/).slice(1, -1))
   const fieldsToAdd = new Map<string, string>()
-  const newFields = parseFields(fieldsRaw.split(/\r?\n/))
+  const newFields = fieldsRaw ? parseFields(fieldsRaw.split(/\r?\n/)) : new Map()
 
   let hasChange = false
 
@@ -96,6 +97,12 @@ export async function run(): Promise<void> {
     }
   }
 
+  for (const toRemove of removeFields) {
+    if (fields.delete(toRemove)) {
+      hasChange = true
+    }
+  }
+
   const newTitle = titleFrom ? (newFields.get(titleFrom) ?? fields.get(titleFrom)) : title
 
   if (!hasChange) {
@@ -113,14 +120,20 @@ export async function run(): Promise<void> {
       .map(([k, v]) => `${k}: ${v}`)
       .join('\n')
 
-  let newBlockContent = fieldsToBlock(fields)
+  let newBlockContent = fields.size ? fieldsToBlock(fields) : ''
 
   if (fieldsToAdd.size) {
     const newFieldsContent = fieldsToBlock(fieldsToAdd)
     if (prepend) {
-      newBlockContent = `${newFieldsContent}\n${newBlockContent}`
+      newBlockContent = newBlockContent
+        ? `${newFieldsContent}\n${newBlockContent}`
+        : newFieldsContent
     } else {
-      newBlockContent += `\n${newFieldsContent}`
+      if (newBlockContent) {
+        newBlockContent += `\n${newFieldsContent}`
+      } else {
+        newBlockContent += newFieldsContent
+      }
     }
   }
 
@@ -128,7 +141,12 @@ export async function run(): Promise<void> {
     owner,
     repo,
     issue_number,
-    body: issueBody!.replace(existingBlock, `${BODY_HEADER}${newBlockContent}${BODY_FOOTER}`),
+    body: issueBody!
+      .replace(
+        existingBlock,
+        newBlockContent ? `${BODY_HEADER}${newBlockContent}${BODY_FOOTER}` : '',
+      )
+      .trimStart(),
   }
   if (newTitle && newTitle !== oldTitle) {
     console.log('updating block and title')

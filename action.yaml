@@ -10,7 +10,6 @@ branding:
 inputs:
   fields:
     description: 'Fields to prepend, one per line in format "key: value"'
-    required: true
   github-token:
     description: Github token used for amending body
     default: ${{ github.token }}
@@ -29,3 +28,5 @@ inputs:
     description: Update title to specified string
   title-from:
     description: Update issue title from named field
+  remove-fields:
+    description: Remove comma separated list of fields

@@ -24,7 +24,7 @@ const fieldsToBlock = (fields?: Record<string, string>) =>
   fields ? `<!-- body fields -->\r\n${fieldsToString(fields)}\r\n<!-- end body fields -->` : ''
 
 function mockDependencies(
-  fields: Record<string, string>,
+  fields?: Record<string, string>,
   bodyFields: Record<string, string> | undefined = undefined,
   {
     prepend = false,
@@ -33,6 +33,7 @@ function mockDependencies(
     oldTitle,
     title,
     titleFrom,
+    removeFields,
   }: {
     prepend?: boolean
     appendToValues?: boolean
@@ -40,9 +41,10 @@ function mockDependencies(
     oldTitle?: string
     title?: string
     titleFrom?: string
+    removeFields?: string
   } = {},
 ): Mock {
-  getInputMock.mockReturnValueOnce(fieldsToString(fields))
+  getInputMock.mockReturnValueOnce(fields && fieldsToString(fields))
   getInputMock.mockReturnValueOnce('token')
   getInputMock.mockReturnValueOnce('123')
   getInputMock.mockReturnValueOnce('owner/repo')
@@ -50,6 +52,7 @@ function mockDependencies(
   getInputMock.mockReturnValueOnce(appendToValues.toString())
   getInputMock.mockReturnValueOnce(title)
   getInputMock.mockReturnValueOnce(titleFrom)
+  getInputMock.mockReturnValueOnce(removeFields)
 
   const body = `${bodyFields ? fieldsToBlock(bodyFields) : ''}${bodyContent ?? ''}`
 
@@ -216,5 +219,38 @@ describe('when title is used', () => {
     )
     await run()
     expectFields(update, { mr: '3', cat: '2' }, { title: 'new' })
+  })
+})
+
+describe('when remove-fields is used', () => {
+  it('can remove a field', async () => {
+    const update = mockDependencies(undefined, { mr: 'new', cat: '2' }, { removeFields: 'cat' })
+    await run()
+    expectFields(update, { mr: 'new' })
+  })
+
+  it('can remove multiple fields', async () => {
+    const update = mockDependencies(
+      undefined,
+      { mr: 'new', cat: '2', friend: '4' },
+      { removeFields: 'mr,cat' },
+    )
+    await run()
+    expectFields(update, { friend: '4' })
+  })
+
+  it('removes the block if there are no fields left', async () => {
+    const update = mockDependencies(
+      undefined,
+      { mr: 'new' },
+      { bodyContent: 'mamas', removeFields: 'mr' },
+    )
+    await run()
+    expect(update).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      issue_number: 123,
+      body: 'mamas',
+    })
   })
 })

@@ -58,4 +58,9 @@ jobs:
           fields: |
             Neart the bottom: i am mouses
             At the bottom: you eat metaphor
+
+      # remove some fields
+      - uses: insidewhy/action-body-fields@v1
+        with:
+          remove-fields: Website,Stories
 ```

@@ -30,3 +30,7 @@ inputs:
     description: Update issue title from named field
   remove-fields:
     description: Remove comma separated list of fields
+  header:
+    description: Add a header to the block
+  footer:
+    description: Add a footer to the block

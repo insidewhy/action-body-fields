@@ -15,6 +15,36 @@ function parseFields(fieldsRaw: string[]): Map<string, string> {
   )
 }
 
+function parseFieldsWithHeaderAndFooter(fieldsRaw: string[]): {
+  header: string
+  footer: string
+  fields: Map<string, string>
+} {
+  let header = ''
+  let finishedHeader = false
+  let footer = ''
+  const fields = new Map<string, string>()
+
+  for (const line of fieldsRaw) {
+    const sepIndex = line.indexOf(': ')
+    if (sepIndex === -1) {
+      if (finishedHeader) {
+        footer += footer ? `\n${line}` : line
+      } else {
+        header += header ? `\n${line}` : line
+      }
+    } else {
+      finishedHeader = true
+      fields.set(line.substring(0, sepIndex), line.substring(sepIndex + 2))
+    }
+  }
+
+  return { header, footer, fields }
+}
+
+const buildBody = (fieldContent: string, header: string, footer: string) =>
+  `${BODY_HEADER}${header ? header + '\n' : header}${fieldContent}${footer ? '\n' + footer : ''}${BODY_FOOTER}`
+
 export async function run(): Promise<void> {
   const fieldsRaw = getInput('fields') ?? ''
   const githubToken = getInput('github-token', { required: true })
@@ -25,6 +55,8 @@ export async function run(): Promise<void> {
   const title = getInput('title')
   const titleFrom = getInput('title-from')
   const removeFields = (getInput('remove-fields') ?? '').split(',')
+  const newHeader = getInput('header') ?? ''
+  const newFooter = getInput('footer') ?? ''
 
   const client = new Octokit({ auth: githubToken })
   const issue = await client.issues.get({ owner, repo, issue_number })
@@ -52,9 +84,13 @@ export async function run(): Promise<void> {
       console.log('no block to append values')
     } else if (fieldsRaw) {
       console.log('creating block')
-      const newFields = parseFields(fieldsRaw.split(/\r?\n/))
+      const {
+        header,
+        footer,
+        fields: newFields,
+      } = parseFieldsWithHeaderAndFooter(fieldsRaw.split(/\r?\n/))
       const newTitle = titleFrom ? newFields.get(titleFrom) : title
-      const body = `${BODY_HEADER}${fieldsRaw}${BODY_FOOTER}${issueBody ? '\n\n' + issueBody : ''}`
+      const body = `${buildBody(fieldsRaw, newHeader || header, newFooter || footer)}${issueBody ? '\n\n' + issueBody : ''}`
       const update: UpdateParameters = { owner, repo, issue_number, body }
       if (newTitle) {
         update.title = newTitle
@@ -66,7 +102,9 @@ export async function run(): Promise<void> {
     return
   }
 
-  const fields = parseFields(existingBlock.split(/\r?\n/).slice(1, -1))
+  const { header, footer, fields } = parseFieldsWithHeaderAndFooter(
+    existingBlock.split(/\r?\n/).slice(1, -1),
+  )
   const fieldsToAdd = new Map<string, string>()
   const newFields = fieldsRaw ? parseFields(fieldsRaw.split(/\r?\n/)) : new Map()
 
@@ -112,7 +150,10 @@ export async function run(): Promise<void> {
       console.log('updating title')
       await client.issues.update({ owner, repo, issue_number, title: newTitle })
     }
-    return
+
+    if (header === newHeader && footer === newFooter) {
+      return
+    }
   }
 
   const fieldsToBlock = (fields: Map<string, string>) =>
@@ -144,7 +185,7 @@ export async function run(): Promise<void> {
     body: issueBody!
       .replace(
         existingBlock,
-        newBlockContent ? `${BODY_HEADER}${newBlockContent}${BODY_FOOTER}` : '',
+        newBlockContent ? buildBody(newBlockContent, newHeader || header, newFooter || footer) : '',
       )
       .trimStart(),
   }

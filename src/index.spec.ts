@@ -20,8 +20,10 @@ const fieldsToString = (fields: Record<string, string>) =>
     .map(([k, v]) => `${k}: ${v}`)
     .join('\n')
 
-const fieldsToBlock = (fields?: Record<string, string>) =>
-  fields ? `<!-- body fields -->\r\n${fieldsToString(fields)}\r\n<!-- end body fields -->` : ''
+const fieldsToBlock = (fields?: Record<string, string>, header?: string, footer?: string) =>
+  fields
+    ? `<!-- body fields -->\r\n${header ? header + '\n' : ''}${fieldsToString(fields)}${footer ? '\n' + footer : ''}\r\n<!-- end body fields -->`
+    : ''
 
 function mockDependencies(
   fields?: Record<string, string>,
@@ -30,18 +32,26 @@ function mockDependencies(
     prepend = false,
     appendToValues = false,
     bodyContent = undefined,
+    headerContent,
+    footerContent,
     oldTitle,
     title,
     titleFrom,
     removeFields,
+    header,
+    footer,
   }: {
     prepend?: boolean
     appendToValues?: boolean
     bodyContent?: string
+    headerContent?: string
+    footerContent?: string
     oldTitle?: string
     title?: string
     titleFrom?: string
     removeFields?: string
+    header?: string
+    footer?: string
   } = {},
 ): Mock {
   getInputMock.mockReturnValueOnce(fields && fieldsToString(fields))
@@ -53,8 +63,10 @@ function mockDependencies(
   getInputMock.mockReturnValueOnce(title)
   getInputMock.mockReturnValueOnce(titleFrom)
   getInputMock.mockReturnValueOnce(removeFields)
+  getInputMock.mockReturnValueOnce(header)
+  getInputMock.mockReturnValueOnce(footer)
 
-  const body = `${bodyFields ? fieldsToBlock(bodyFields) : ''}${bodyContent ?? ''}`
+  const body = `${bodyFields ? fieldsToBlock(bodyFields, headerContent, footerContent) : ''}${bodyContent ?? ''}`
 
   issuesMock.get[returns].data.body = body
   if (oldTitle) {
@@ -66,7 +78,12 @@ function mockDependencies(
 function expectFields(
   update: Mock,
   fields?: Record<string, string>,
-  { contentAfterFields = '', title }: { contentAfterFields?: string; title?: string } = {},
+  {
+    contentAfterFields = '',
+    title,
+    header,
+    footer,
+  }: { contentAfterFields?: string; title?: string; header?: string; footer?: string } = {},
 ): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const expectedUpdate: any = {
@@ -78,7 +95,7 @@ function expectFields(
     expectedUpdate.title = title
   }
 
-  const body = fields && fieldsToBlock(fields)
+  const body = fields && fieldsToBlock(fields, header, footer)
   if (body) {
     expectedUpdate.body = body + contentAfterFields
   } else if (contentAfterFields) {
@@ -251,6 +268,57 @@ describe('when remove-fields is used', () => {
       repo: 'repo',
       issue_number: 123,
       body: 'mamas',
+    })
+  })
+})
+
+describe('with existing or new headers and footers', () => {
+  it('preserves existing headers and footer', async () => {
+    const update = mockDependencies(
+      { mr: '4' },
+      { mr: '3' },
+      { headerContent: 'foo', footerContent: 'yeah' },
+    )
+    await run()
+    expectFields(update, { mr: '4' }, { header: 'foo', footer: 'yeah' })
+  })
+
+  it('updates existing header and footer', async () => {
+    const update = mockDependencies(
+      { mr: '4' },
+      { mr: '3' },
+      { headerContent: 'foo', footerContent: 'yeah', header: 'chiz', footer: 'yop' },
+    )
+    await run()
+    expectFields(update, { mr: '4' }, { header: 'chiz', footer: 'yop' })
+  })
+
+  it('adds new header and footer', async () => {
+    const update = mockDependencies({ mr: '4' }, { mr: '3' }, { header: 'chiz', footer: 'yop' })
+    await run()
+    expectFields(update, { mr: '4' }, { header: 'chiz', footer: 'yop' })
+  })
+
+  it('adds new header when there are no changes to fields', async () => {
+    const update = mockDependencies({ mr: '4' }, { mr: '4' }, { header: 'chiz' })
+    await run()
+    expectFields(update, { mr: '4' }, { header: 'chiz' })
+  })
+
+  it('adds new footer when there are no changes to fields', async () => {
+    const update = mockDependencies({ mr: '4' }, { mr: '4' }, { footer: 'chapo' })
+    await run()
+    expectFields(update, { mr: '4' }, { footer: 'chapo' })
+  })
+
+  it('removes header and footer when final field is removed via remove-fields', async () => {
+    const update = mockDependencies(undefined, { mr: '4' }, { footer: 'chapo', removeFields: 'mr' })
+    await run()
+    expect(update).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      issue_number: 123,
+      body: '',
     })
   })
 })

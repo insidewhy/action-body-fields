@@ -2,8 +2,10 @@ import { includeIgnoreFile } from '@eslint/compat'
 import eslint from '@eslint/js'
 import configPrettier from 'eslint-config-prettier'
 import pluginImport from 'eslint-plugin-import'
+import globals from 'globals'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import * as typescriptEslint from 'typescript-eslint'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -11,6 +13,7 @@ const gitignorePath = path.resolve(__dirname, '.gitignore')
 
 export default [
   eslint.configs.recommended,
+  ...typescriptEslint.configs.recommended,
   configPrettier,
   pluginImport.flatConfigs.recommended,
   includeIgnoreFile(gitignorePath),
@@ -21,15 +24,13 @@ export default [
         '@typescript-eslint/parser': ['.ts', '.tsx'],
       },
       'import/resolver': {
-        typescript: {
-          // see https://github.com/import-js/eslint-import-resolver-typescript/issues/94
-          // project: [`${__dirname}/tsconfig.app.json`, `${__dirname}/tsconfig.json`],
-        },
+        typescript: {},
       },
     },
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
+      globals: globals.node,
     },
     rules: {
       'import/order': [

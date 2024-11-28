@@ -1,9 +1,9 @@
-import { munamuna, returns, spy } from 'munamuna'
-import { beforeEach, describe, expect, it, vi, Mock } from 'vitest'
 import * as actionsCore from '@actions/core'
 import * as octokitRest from '@octokit/rest'
+import { munamuna, returns, spy } from 'munamuna'
+import { beforeEach, describe, expect, it, Mock, vi } from 'vitest'
 
-import { getBlockHeader, getBlockFooter, run, buildBlock, Config } from './index'
+import { buildBlock, Config, getBlockFooter, getBlockHeader, run } from './index'
 
 vi.mock('@actions/core', () => ({}))
 vi.mock('@octokit/rest', () => ({}))
@@ -120,6 +120,7 @@ function mockConfigsAndBlocks(
       mockBody += mockBody ? `\n\n${existing.bodyAfterBlock}` : existing.bodyAfterBlock
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mockReturn: any = { data: { body: mockBody } }
     if (existing.title) {
       mockReturn.data.title = existing.title
@@ -504,7 +505,7 @@ describe('content option', () => {
     expectBlocksRaw(update, ['<!-- body fields -->\r\nhey there\r\n<!-- end body fields -->'])
   })
 
-  it.only('can update a content block', async () => {
+  it('can update a content block', async () => {
     const update = mockConfigAndBlock(
       undefined,
       { content: 'how how the caribou' },
